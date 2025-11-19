@@ -160,6 +160,18 @@ def update_event(event_id: str, summary: str = None, description: str = None, st
     }
 
 
+def delete_event(event_id: str) -> dict:
+    """
+    Delete an event from the calendar.
+    """
+    service = build_calendar_service()
+    try:
+        service.events().delete(calendarId='primary', eventId=event_id).execute()
+        return {"ok": True}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 # ============== FLASK APP ==============
 
 app = Flask(__name__)
@@ -251,6 +263,25 @@ def update_event_endpoint():
             start_iso=data.get("start"),
             end_iso=data.get("end")
         )
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/delete_event", methods=["POST"])
+def delete_event_endpoint():
+    """
+    HTTP endpoint to delete an event.
+    JSON body: {eventId}
+    """
+    try:
+        data = request.get_json(force=True) or {}
+        event_id = data.get("eventId")
+        
+        if not event_id:
+            return jsonify({"ok": False, "error": "Missing eventId"}), 400
+            
+        result = delete_event(event_id)
         return jsonify(result), 200
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
