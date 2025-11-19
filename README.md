@@ -264,15 +264,9 @@ http://127.0.0.1:5000
 - Verify `GOOGLE_API_KEY` in `.env` file
 - Check API quota limits in Google AI Studio
 
----
 
-## 👨‍💻 Author
-
-**Manish**  
-MCA Student | AI/ML Enthusiast
-
----
 
 ## 📄 License
 
 This project is for educational purposes.
+
