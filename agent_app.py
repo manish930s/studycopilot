@@ -447,10 +447,12 @@ VERY IMPORTANT:
        a conversational wizard while Python collects the exact date/time from the user.
    
    (C) Rescheduling / Updating (CRITICAL):
-       If the user wants to reschedule, you might need to ask for clarification first.
-       Once you are sure about the Event ID and the new Start/End times (in IST), you MUST output a JSON block at the end of your response to trigger the update.
-       
-       IMPORTANT: 'eventId' must be the actual Google Calendar ID string (e.g., "7vgnurdqdpe85km0ofnb061b08"), NOT the event title/summary.
+       1. Check the [SYSTEM CONTEXT] for 'upcoming_events'.
+       2. Find the event that matches the user's request (e.g. "Python Basics").
+       3. Use that event's 'id' as the 'eventId'.
+       4. DO NOT ASK THE USER FOR THE EVENT ID if it is available in the context.
+       5. Only ask for clarification on the NEW time if it's not clear.
+       6. Once you have the ID and the new time, output the JSON block.
        
        Format:
        ```json
@@ -627,7 +629,18 @@ def chat_endpoint():
     lower_msg = user_msg.lower()
     is_reschedule = "reschedule" in lower_msg or "move" in lower_msg or "change" in lower_msg
     
-    # 2. Auto-create logic (Tomorrow at X)
+    # 2. Handle reschedule requests - fetch upcoming events to help agent
+    if is_reschedule:
+        tz = get_ist_tz()
+        now = dt.datetime.now(tz)
+        start_search = now.isoformat()
+        end_search = (now + dt.timedelta(days=30)).isoformat()
+        list_res = list_calendar_events(start_search, end_search, max_results=50)
+        
+        if list_res.get("ok") and list_res.get("events"):
+            context["upcoming_events"] = list_res["events"]
+    
+    # 3. Auto-create logic (Tomorrow at X)
     # Skip if reschedule to avoid duplicates
     if not is_reschedule and "tomorrow" in lower_msg and ("am" in lower_msg or "pm" in lower_msg):
         auto_info = auto_create_tomorrow_event(user_msg, today_info)
@@ -647,6 +660,67 @@ def chat_endpoint():
     # 3. Call Gemini Agent
     # We need to pass the history and context
     agent_response = chat_with_agent(user_msg, chat_history, context)
+    
+    # 4. Parse JSON from agent response for batch event creation
+    import json
+    
+    # Look for JSON blocks in the response
+    json_match = re.search(r'```json\s*(\{.*?\})\s*```', agent_response, re.DOTALL)
+    if json_match:
+        try:
+            json_data = json.loads(json_match.group(1))
+            
+            # Handle batch event creation
+            if json_data.get("action") == "create_events":
+                events = json_data.get("events", [])
+                created_count = 0
+                failed_count = 0
+                
+                for event in events:
+                    result = create_calendar_event(
+                        summary=event.get("summary", "Event"),
+                        description=event.get("description", ""),
+                        start_iso=event.get("start_iso"),
+                        end_iso=event.get("end_iso")
+                    )
+                    
+                    if result.get("ok"):
+                        created_count += 1
+                    else:
+                        failed_count += 1
+                        print(f"[ERROR] Failed to create event '{event.get('summary')}': {result.get('error')}")
+                
+                if created_count > 0:
+                    events_updated = True
+                    # Add confirmation message
+                    confirmation = f"\n\n✅ Successfully created {created_count} event(s) in your Google Calendar!"
+                    if failed_count > 0:
+                        confirmation += f" ({failed_count} failed)"
+                    agent_response += confirmation
+            
+            # Handle single event update
+            elif json_data.get("action") == "update_event":
+                event_id = json_data.get("eventId")
+                start_iso = json_data.get("start_iso")
+                end_iso = json_data.get("end_iso")
+                
+                if event_id and start_iso and end_iso:
+                    result = update_calendar_event(
+                        event_id=event_id,
+                        start_iso=start_iso,
+                        end_iso=end_iso
+                    )
+                    
+                    if result.get("ok"):
+                        events_updated = True
+                        agent_response += "\n\n✅ Event updated successfully!"
+                    else:
+                        agent_response += f"\n\n❌ Failed to update event: {result.get('error')}"
+        
+        except json.JSONDecodeError as e:
+            print(f"[ERROR] Failed to parse JSON from agent response: {e}")
+        except Exception as e:
+            print(f"[ERROR] Error processing agent JSON: {e}")
     
     # Update history
     chat_history.append({"role": "user", "content": user_msg})
