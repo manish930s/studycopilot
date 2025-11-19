@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StudyCopilot</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">
+                <i class="fa-solid fa-brain"></i>
+                <span>StudyCopilot</span>
+            </div>
+
+            <button id="new-chat-btn" class="new-chat-btn">
+                <i class="fa-solid fa-plus"></i> New Chat
+            </button>
+
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active" id="nav-chat">
+                    <i class="fa-regular fa-message"></i> Chat
+                </a>
+                <a href="#" class="nav-item" id="nav-tasks">
+                    <i class="fa-solid fa-list-check"></i> Tasks
+                </a>
+                <a href="#" class="nav-item" id="nav-dashboard">
+                    <i class="fa-solid fa-chart-line"></i> Dashboard
+                </a>
+                <a href="#" class="nav-item" id="nav-quizzes">
+                    <i class="fa-solid fa-graduation-cap"></i> Quizzes
+                </a>
+            </nav>
+
+            <div class="sidebar-section">
+                <h3><i class="fa-regular fa-clock"></i> Recent Chats</h3>
+                <div class="recent-chats-list" id="recent-chats-list">
+                    <!-- Sessions will be injected here -->
+                    <div class="loading-events">Loading...</div>
+                </div>
+            </div>
+
+            <div class="sidebar-section">
+                <h3><i class="fa-regular fa-calendar"></i> Schedule</h3>
+                <div id="events-list" class="events-list">
+                    <!-- Events will be injected here -->
+                    <div class="loading-events">Loading...</div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Chat Area -->
+        <main class="chat-area">
+            <header class="chat-header">
+                <div class="header-info">
+                    <h2>Study Assistant</h2>
+                    <p>AI-Powered Planner & Scheduler</p>
+                </div>
+                <div class="header-actions">
+                    <button id="refresh-calendar" title="Refresh Calendar"><i
+                            class="fa-solid fa-rotate-right"></i></button>
+                </div>
+            </header>
+
+            <div id="chat-messages" class="chat-messages">
+                <div class="message agent">
+                    <div class="avatar"><i class="fa-solid fa-robot"></i></div>
+                    <div class="content">
+                        <p>Hello Manish! I'm your StudyCopilot. I can help you plan your studies, schedule tasks, and
+                            track your progress. How can I help you today?</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chat-input-area">
+                <form id="chat-form">
+                    <input type="text" id="user-input"
+                        placeholder="Type your request... (e.g., 'Schedule a Python study session')" autocomplete="off">
+                    <button type="submit"><i class="fa-solid fa-paper-plane"></i></button>
+                </form>
+            </div>
+        </main>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+
+</html>
