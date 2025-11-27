@@ -54,6 +54,17 @@
                 </div>
                 <button id="refresh-calendar" title="Refresh Calendar"><i class="fa-solid fa-rotate-right"></i></button>
             </div>
+            <div class="sidebar-footer">
+                <div class="user-profile">
+                    <div class="user-avatar">
+                        <i class="fa-solid fa-user"></i>
+                    </div>
+                    <div class="user-info">
+                        <span class="user-name">{{ user_name or 'User' }}</span>
+                        <a href="/logout" class="logout-link">Logout</a>
+                    </div>
+                </div>
+            </div>
         </aside>
 
         <!-- Main Chat Area -->
@@ -69,7 +80,7 @@
                 <div class="message agent">
                     <div class="avatar"><i class="fa-solid fa-robot"></i></div>
                     <div class="content">
-                        <p>Hello Manish! I'm your StudyCopilot. I can help you plan your studies, schedule tasks, and
+                        <p>Hello! I'm your StudyCopilot. I can help you plan your studies, schedule tasks, and
                             track your progress. How can I help you today?</p>
                     </div>
                 </div>
@@ -178,7 +189,7 @@
 
             <div class="tasks-content">
                 <section class="task-section">
-                    <h3><i class="fa-regular fa-calendar-check"></i> Scheduled Today</h3>
+                    <h3><i class="fa-regular fa-calendar-check"></i> Upcoming Schedule</h3>
                     <div id="scheduled-tasks-list" class="task-list">
                         <div class="empty-state">No events scheduled for today.</div>
                     </div>

@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - StudyCopilot</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(circle at top right, #1e293b, #0f172a);
+        }
+
+        .login-container {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            padding: 3rem;
+            border-radius: 1.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+        }
+
+        .login-logo {
+            font-size: 3rem;
+            color: var(--accent-color);
+            margin-bottom: 1rem;
+        }
+
+        .login-title {
+            font-size: 2rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #fff, #94a3b8);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .login-subtitle {
+            color: var(--text-secondary);
+            margin-bottom: 2.5rem;
+        }
+
+        .google-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            background: white;
+            color: #333;
+            width: 100%;
+            padding: 1rem;
+            border-radius: 0.75rem;
+            border: none;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .google-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 255, 255, 0.1);
+        }
+
+        .google-icon {
+            width: 24px;
+            height: 24px;
+        }
+
+        .error-msg {
+            color: #ef4444;
+            margin-top: 1rem;
+            font-size: 0.9rem;
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="login-container">
+        <div class="login-logo">
+            <i class="fa-solid fa-brain"></i>
+        </div>
+        <h1 class="login-title">StudyCopilot</h1>
+        <p class="login-subtitle">Your AI-Powered Study Assistant</p>
+
+        <button id="google-login-btn" class="google-btn">
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google"
+                class="google-icon">
+            Sign in with Google
+        </button>
+
+        <p id="error-message" class="error-msg"></p>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyByO3exgnw1ZqkmKSBL1VKiCwLxEnmO2ag",
+            authDomain: "studycopilot-9434d.firebaseapp.com",
+            projectId: "studycopilot-9434d",
+            storageBucket: "studycopilot-9434d.firebasestorage.app",
+            messagingSenderId: "21392727344",
+            appId: "1:21392727344:web:3d7696f44645d00cc9bcf5",
+            measurementId: "G-28EZJD18M9"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const provider = new GoogleAuthProvider();
+        // Force use of the project that has Calendar API enabled
+        provider.setCustomParameters({
+            'client_id': '370055681762-1an83limrs9ui5li794lmvpslk35bloj.apps.googleusercontent.com'
+        });
+
+        const loginBtn = document.getElementById('google-login-btn');
+        const errorMsg = document.getElementById('error-message');
+
+        loginBtn.addEventListener('click', async () => {
+            try {
+                // Request access to Google Calendar
+                provider.addScope('https://www.googleapis.com/auth/calendar');
+
+                const result = await signInWithPopup(auth, provider);
+
+                // This gives you a Google Access Token. You can use it to access the Google API.
+                const credential = GoogleAuthProvider.credentialFromResult(result);
+                const accessToken = credential.accessToken;
+
+                const user = result.user;
+                const token = await user.getIdToken();
+
+                // Send token to backend to set session
+                const response = await fetch('/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        token: token,
+                        uid: user.uid,
+                        email: user.email,
+                        name: user.displayName,
+                        access_token: accessToken // Send the OAuth access token
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    window.location.href = '/';
+                } else {
+                    throw new Error(data.error || 'Login failed on server');
+                }
+
+            } catch (error) {
+                console.error("Login Error:", error);
+                errorMsg.textContent = "Login failed: " + error.message;
+                errorMsg.style.display = 'block';
+
+                if (error.code === 'auth/configuration-not-found') {
+                    errorMsg.textContent = "Firebase config missing. Please check the code.";
+                }
+            }
+        });
+    </script>
+</body>
+
+</html>

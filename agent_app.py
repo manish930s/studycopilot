@@ -126,7 +126,7 @@ def get_current_datetime(timezone: str = "Asia/Kolkata") -> dict:
     }
 
 
-def create_calendar_event(summary: str, description: str, start_iso: str, end_iso: str) -> dict:
+def create_calendar_event(summary: str, description: str, start_iso: str, end_iso: str, access_token: str = None) -> dict:
     """
     Call local calendar_bridge.py server (Flask) to create an event.
     """
@@ -135,73 +135,71 @@ def create_calendar_event(summary: str, description: str, start_iso: str, end_is
         "description": description,
         "start": start_iso,
         "end": end_iso,
+        "access_token": access_token
     }
 
     try:
         resp = requests.post(CALENDAR_BRIDGE_URL, json=payload, timeout=10)
-        resp.raise_for_status()
         return resp.json()
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
 
-def list_calendar_events(time_min_iso: str, time_max_iso: str, max_results: int = 10) -> dict:
+def list_calendar_events(time_min: str, time_max: str, max_results: int = 10, access_token: str = None) -> dict:
     """
-    Call local calendar_bridge to list events.
+    Call local calendar_bridge.py server to list events.
     """
     params = {
-        "timeMin": time_min_iso,
-        "timeMax": time_max_iso,
-        "maxResults": max_results
+        "timeMin": time_min,
+        "timeMax": time_max,
+        "maxResults": max_results,
+        "access_token": access_token
     }
     try:
-        url = CALENDAR_BRIDGE_URL.replace("/create_event", "/list_events")
-        resp = requests.get(url, params=params, timeout=10)
-        resp.raise_for_status()
+        # We assume the bridge is running on port 5001
+        bridge_list_url = CALENDAR_BRIDGE_URL.replace("/create_event", "/list_events")
+        resp = requests.get(bridge_list_url, params=params, timeout=10)
         return resp.json()
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
+# ========================
 
-def update_calendar_event(event_id: str, summary: str = None, description: str = None, start_iso: str = None, end_iso: str = None) -> dict:
+def update_calendar_event(event_id: str, summary: str = None, description: str = None, start_iso: str = None, end_iso: str = None, access_token: str = None) -> dict:
     """
-    Call local calendar_bridge to update an event.
+    Call local calendar_bridge.py server to update an event.
     """
     payload = {
         "eventId": event_id,
         "summary": summary,
         "description": description,
         "start": start_iso,
-        "end": end_iso
+        "end": end_iso,
+        "access_token": access_token
     }
     try:
-        url = CALENDAR_BRIDGE_URL.replace("/create_event", "/update_event")
-        resp = requests.post(url, json=payload, timeout=10)
-        resp.raise_for_status()
+        bridge_update_url = CALENDAR_BRIDGE_URL.replace("/create_event", "/update_event")
+        resp = requests.post(bridge_update_url, json=payload, timeout=10)
         return resp.json()
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
-
-def delete_calendar_event(event_id: str) -> dict:
+def delete_calendar_event(event_id: str, access_token: str = None) -> dict:
     """
-    Call local calendar_bridge to delete an event.
+    Call local calendar_bridge.py server to delete an event.
     """
-    payload = {"eventId": event_id}
+    payload = {
+        "eventId": event_id,
+        "access_token": access_token
+    }
     try:
-        url = CALENDAR_BRIDGE_URL.replace("/create_event", "/delete_event")
-        resp = requests.post(url, json=payload, timeout=10)
-        resp.raise_for_status()
+        bridge_delete_url = CALENDAR_BRIDGE_URL.replace("/create_event", "/delete_event")
+        resp = requests.post(bridge_delete_url, json=payload, timeout=10)
         return resp.json()
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
-
-# ========================
-# Helper: auto-parse "tomorrow at 11pm"
-# ========================
-
-def auto_create_tomorrow_event(user_message: str, today_info: dict) -> dict | None:
+def auto_create_tomorrow_event(user_message: str, today_info: dict, access_token: str = None) -> dict | None:
     """
     Very simple 'direct save' helper.
     """
@@ -245,6 +243,7 @@ def auto_create_tomorrow_event(user_message: str, today_info: dict) -> dict | No
         description=description,
         start_iso=start_dt.isoformat(),
         end_iso=end_dt.isoformat(),
+        access_token=access_token
     )
 
     return {
@@ -268,6 +267,16 @@ Capabilities:
 - You can create Google Calendar events via the `create_calendar_event` tool.
 - You can LIST events using `list_calendar_events` and UPDATE them using `update_calendar_event`.
 - You have access to uploaded documents (Context-Aware RAG). If [RAG CONTEXT] is provided, use it to answer the user's questions.
+
+Persona:
+- You are a friendly, encouraging, and supportive mentor.
+- You care about the user's progress and well-being.
+- Your tone should be positive, motivating, and professional yet accessible.
+
+Personalization:
+- You have access to the user's name in [SYSTEM CONTEXT] under 'user_name'.
+- Always address the user by their name occasionally (e.g., "Hello Manish", "Great job, Manish!", "Don't worry, Manish").
+- Make the user feel seen and supported.
 
 VERY IMPORTANT:
 
@@ -296,13 +305,16 @@ VERY IMPORTANT:
        3. Propose a new time based on the user's schedule (or ask for one).
        4. Once you have the ID and the new time, output the JSON block to update it.
        
-       IMPORTANT: 'eventId' must be the actual Google Calendar ID string.
+       IMPORTANT: 'eventId' must be the actual Google Calendar ID string found in [SYSTEM CONTEXT].
+       
+       CRITICAL: IF YOU CANNOT FIND THE EVENT IN [SYSTEM CONTEXT], DO NOT HALLUCINATE AN ID.
+       Instead, tell the user: "I couldn't find that event in your current calendar. Please check if you are logged into the correct account or if the event exists."
        
        Format:
        ```json
        {
          "action": "update_event",
-         "eventId": "EVENT_ID_HERE",
+         "eventId": "EVENT_ID_FROM_CONTEXT",
          "start_iso": "2025-MM-DDTHH:MM:00+05:30",
          "end_iso": "2025-MM-DDTHH:MM:00+05:30"
        }
@@ -417,11 +429,12 @@ def chat_with_agent(user_message: str, history: list[dict], context: dict | None
 # FLASK WEB SERVER
 # ========================
 
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 import uuid
 import json
 
 app = Flask(__name__)
+app.secret_key = "STUDY_COPILOT_SECURE_SECRET_KEY_123" # Static key for session persistence
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # Global sessions storage
@@ -473,7 +486,32 @@ def upload_endpoint():
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    return render_template("index.html", user_name=session.get('user_name'))
+
+@app.route("/login")
+def login():
+    if 'user_id' in session:
+        return redirect(url_for('index'))
+    return render_template("login.html")
+
+@app.route("/auth/login", methods=["POST"])
+def auth_login():
+    data = request.json
+    # In a real app, verify the Firebase token here using firebase-admin SDK
+    # For now, we trust the client-side authentication for this demo
+    session['user_id'] = data.get('uid')
+    session['user_email'] = data.get('email')
+    session['user_name'] = data.get('name')
+    session['access_token'] = data.get('access_token') # Store Google OAuth Access Token
+    print(f"[DEBUG] /auth/login: Stored access_token ending in ...{session['access_token'][-6:] if session.get('access_token') else 'None'}")
+    return jsonify({"success": True})
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
 
 @app.route("/sessions", methods=["GET"])
 def get_sessions():
@@ -542,15 +580,19 @@ def chat_endpoint():
             "history": []
         }
     
-    session = sessions[session_id]
-    chat_history = session["history"]
+    session_data = sessions[session_id]
+    chat_history = session_data["history"]
 
     if len(chat_history) == 0:
-        session["title"] = user_msg[:30] + "..." if len(user_msg) > 30 else user_msg
+        session_data["title"] = user_msg[:30] + "..." if len(user_msg) > 30 else user_msg
 
     # 1. Context & Intent Detection
     today_info = get_current_datetime()
-    context = {"today_info": today_info}
+    user_name = session.get('user_name', 'User')
+    context = {
+        "today_info": today_info,
+        "user_name": user_name
+    }
     events_updated = False
     
     lower_msg = user_msg.lower()
@@ -558,13 +600,17 @@ def chat_endpoint():
     is_calendar_action = any(k in lower_msg for k in ["reschedule", "move", "change", "missed", "delete", "remove", "cancel"])
     
     # 2. Handle calendar requests - fetch upcoming events to help agent
+    # CRITICAL: Always get the fresh token from the session for the CURRENT user
+    access_token = session.get('access_token')
+    print(f"[DEBUG] /chat: Using access_token ending in ...{access_token[-6:] if access_token else 'None'}")
+    
     if is_calendar_action:
         tz = get_ist_tz()
         now = dt.datetime.now(tz)
         # Look back 2 days for "missed" events, look forward 30 days for upcoming
         start_search = (now - dt.timedelta(days=2)).isoformat()
         end_search = (now + dt.timedelta(days=30)).isoformat()
-        list_res = list_calendar_events(start_search, end_search, max_results=50)
+        list_res = list_calendar_events(start_search, end_search, max_results=50, access_token=access_token)
         
         if list_res.get("ok") and list_res.get("events"):
             context["upcoming_events"] = list_res["events"]
@@ -580,7 +626,7 @@ def chat_endpoint():
 
     # 4. Auto-create logic (Tomorrow at X)
     if not is_calendar_action and "tomorrow" in lower_msg and ("am" in lower_msg or "pm" in lower_msg):
-        auto_info = auto_create_tomorrow_event(user_msg, today_info)
+        auto_info = auto_create_tomorrow_event(user_msg, today_info, access_token=access_token)
         if auto_info:
             context["auto_event_info"] = {
                 "summary": auto_info["summary"],
@@ -610,7 +656,8 @@ def chat_endpoint():
                         summary=event.get("summary", "Event"),
                         description=event.get("description", ""),
                         start_iso=event.get("start_iso"),
-                        end_iso=event.get("end_iso")
+                        end_iso=event.get("end_iso"),
+                        access_token=access_token
                     )
                     
                     if result.get("ok"):
@@ -635,7 +682,8 @@ def chat_endpoint():
                     result = update_calendar_event(
                         event_id=event_id,
                         start_iso=start_iso,
-                        end_iso=end_iso
+                        end_iso=end_iso,
+                        access_token=access_token
                     )
                     
                     if result.get("ok"):
@@ -647,7 +695,7 @@ def chat_endpoint():
             elif action == "delete_event":
                 event_id = json_data.get("eventId")
                 if event_id:
-                    result = delete_calendar_event(event_id)
+                    result = delete_calendar_event(event_id, access_token=access_token)
                     if result.get("ok"):
                         events_updated = True
                         agent_response += "\n\n✅ Event deleted successfully!"
@@ -660,7 +708,7 @@ def chat_endpoint():
                 failed_count = 0
                 
                 for event_id in event_ids:
-                    result = delete_calendar_event(event_id)
+                    result = delete_calendar_event(event_id, access_token=access_token)
                     if result.get("ok"):
                         deleted_count += 1
                     else:
@@ -685,7 +733,7 @@ def chat_endpoint():
         "response": agent_response,
         "events_updated": events_updated,
         "session_id": session_id,
-        "title": session["title"]
+        "title": session_data["title"]
     })
 
 @app.route("/delete_event", methods=["POST"])
@@ -696,7 +744,8 @@ def delete_event_endpoint():
     if not event_id:
         return jsonify({"error": "No event_id provided"}), 400
         
-    result = delete_calendar_event(event_id)
+    access_token = session.get('access_token')
+    result = delete_calendar_event(event_id, access_token=access_token)
     return jsonify(result)
 
 @app.route("/generate_quiz", methods=["POST"])
@@ -954,24 +1003,47 @@ def dashboard_stats():
     if os.path.exists(UPLOAD_FOLDER):
         file_count = len([f for f in os.listdir(UPLOAD_FOLDER) if allowed_file(f)])
         
-    # 3. Upcoming Events (Next 3)
+    # 3. Upcoming Events (Next 7 days)
     upcoming_events = []
     try:
         tz = get_ist_tz()
         now = dt.datetime.now(tz)
-        end_search = (now + dt.timedelta(days=30)).isoformat()
+        end_time = now + dt.timedelta(days=7)
         
-        list_res = list_calendar_events(now.isoformat(), end_search, max_results=3)
-        if list_res.get("ok"):
-            upcoming_events = list_res.get("events", [])
+        end_time = now + dt.timedelta(days=7)
+        
+        access_token = session.get('access_token') # Get token from session
+        print(f"[DEBUG] /dashboard_stats: access_token ending in ...{access_token[-6:] if access_token else 'None'}")
+        
+        if not access_token:
+            # If no token, return empty events rather than falling back to server token
+            upcoming_events = []
+        else:
+            # Fetch events starting from the beginning of today so "today's" events show up even if past
+            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            list_res = list_calendar_events(
+                today_start.isoformat(), 
+                end_time.isoformat(), 
+                max_results=5,
+                access_token=access_token # Pass token to bridge
+            )
+            print(f"[DEBUG] /dashboard_stats: list_res keys: {list_res.keys()}")
+            
+            if list_res.get("ok"):
+                upcoming_events = list_res.get("events", [])
     except Exception as e:
-        print(f"Error fetching events for dashboard: {e}")
+        print(f"Error fetching dashboard events: {e}")
 
     # 4. Knowledge Stats
     quiz_history = load_quiz_history()
+    user_id = session.get('user_id')
     topic_stats = {}
     
     for entry in quiz_history:
+        # Filter by user_id
+        if entry.get("user_id") != user_id:
+            continue
+            
         topic = entry.get("topic", "General")
         score = entry.get("score", 0)
         total = entry.get("total", 1)
@@ -992,6 +1064,7 @@ def dashboard_stats():
     knowledge_profile.sort(key=lambda x: x["level"], reverse=True)
 
     return jsonify({
+        "user_name": session.get('user_name', 'User'),
         "total_chats": session_count,
         "total_files": file_count,
         "upcoming_events": upcoming_events,
@@ -1013,6 +1086,7 @@ def submit_quiz_result():
     history = load_quiz_history()
     history.append({
         "date": dt.datetime.now().isoformat(),
+        "user_id": session.get('user_id'), # Save user_id
         "topic": topic,
         "score": score,
         "total": total
@@ -1023,6 +1097,9 @@ def submit_quiz_result():
 
 @app.route("/events")
 def events_endpoint():
+    if 'access_token' not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+
     tz = get_ist_tz()
     now = dt.datetime.now(tz)
     # Start search from the beginning of today (00:00:00)
@@ -1030,7 +1107,23 @@ def events_endpoint():
     start_search = today_start.isoformat()
     end_search = (now + dt.timedelta(days=7)).isoformat()
     
-    list_res = list_calendar_events(start_search, end_search)
+    access_token = session.get('access_token')
+    if not access_token:
+        print("[DEBUG] /events: No access_token in session")
+        return jsonify({"error": "Unauthorized"}), 401
+
+    print(f"[DEBUG] /events: Fetching events for token ending in ...{access_token[-6:]}")
+    list_res = list_calendar_events(start_search, end_search, access_token=access_token)
+    print(f"[DEBUG] /events: Bridge response: {list_res}")
+    
+    if not list_res.get("ok"):
+        error_msg = list_res.get("error", "")
+        if "accessNotConfigured" in error_msg or "disabled" in error_msg:
+            # Extract project ID if possible or just give generic link
+            project_id = "21392727344" # From the logs
+            link = f"https://console.developers.google.com/apis/api/calendar-json.googleapis.com/overview?project={project_id}"
+            return jsonify({"error": f"Google Calendar API not enabled. <a href='{link}' target='_blank'>Click here to enable it</a>, then refresh."}), 403
+            
     return jsonify(list_res)
 
 @app.route("/mark_event_complete", methods=["POST"])
@@ -1049,7 +1142,8 @@ def mark_event_complete():
         new_summary = "✅ " + current_summary
         
     # Update the event
-    res = update_calendar_event(event_id, summary=new_summary)
+    access_token = session.get('access_token')
+    res = update_calendar_event(event_id, summary=new_summary, access_token=access_token)
     return jsonify(res)
 
 @app.route("/delete_calendar_event", methods=["POST"])
@@ -1061,7 +1155,8 @@ def delete_calendar_event_endpoint():
         return jsonify({"error": "Event ID required"}), 400
     
     # Delete the event using the existing delete_calendar_event function
-    res = delete_calendar_event(event_id)
+    access_token = session.get('access_token')
+    res = delete_calendar_event(event_id, access_token=access_token)
     return jsonify(res)
 
 # Manual tasks storage (in-memory)
@@ -1070,7 +1165,9 @@ task_id_counter = 1
 
 @app.route("/manual_tasks", methods=["GET"])
 def get_manual_tasks():
-    return jsonify(manual_tasks)
+    user_id = session.get('user_id')
+    user_tasks = [t for t in manual_tasks if t.get("user_id") == user_id]
+    return jsonify(user_tasks)
 
 @app.route("/manual_tasks", methods=["POST"])
 def create_manual_task():
@@ -1078,6 +1175,7 @@ def create_manual_task():
     data = request.json
     task = {
         "id": task_id_counter,
+        "user_id": session.get('user_id'), # Save user_id
         "text": data.get("text", ""),
         "completed": False
     }
@@ -1087,8 +1185,9 @@ def create_manual_task():
 
 @app.route("/manual_tasks/<int:task_id>/toggle", methods=["PUT"])
 def toggle_manual_task(task_id):
+    user_id = session.get('user_id')
     for task in manual_tasks:
-        if task["id"] == task_id:
+        if task["id"] == task_id and task.get("user_id") == user_id:
             task["completed"] = not task["completed"]
             return jsonify(task)
     return jsonify({"error": "Task not found"}), 404
@@ -1096,7 +1195,9 @@ def toggle_manual_task(task_id):
 @app.route("/manual_tasks/<int:task_id>", methods=["DELETE"])
 def delete_manual_task(task_id):
     global manual_tasks
-    manual_tasks = [task for task in manual_tasks if task["id"] != task_id]
+    user_id = session.get('user_id')
+    # Only delete if task belongs to user
+    manual_tasks = [task for task in manual_tasks if not (task["id"] == task_id and task.get("user_id") == user_id)]
     return jsonify({"ok": True})
 
 if __name__ == "__main__":

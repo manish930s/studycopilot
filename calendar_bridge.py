@@ -60,16 +60,20 @@ def get_credentials():
     return creds
 
 
-def build_calendar_service():
+def build_calendar_service(access_token: str = None):
     """
     Build the Google Calendar API service client.
+    Strictly requires access_token. Does NOT fall back to token.json for API requests.
     """
-    creds = get_credentials()
+    if not access_token:
+        raise ValueError("access_token is required for calendar operations")
+        
+    creds = Credentials(token=access_token)
     service = build("calendar", "v3", credentials=creds)
     return service
 
 
-def add_study_block(summary: str, description: str, start_iso: str, end_iso: str) -> dict:
+def add_study_block(summary: str, description: str, start_iso: str, end_iso: str, access_token: str) -> dict:
     """
     Create an event on the user's primary Google Calendar.
 
@@ -78,7 +82,7 @@ def add_study_block(summary: str, description: str, start_iso: str, end_iso: str
 
     We always send an explicit timezone field (Asia/Kolkata).
     """
-    service = build_calendar_service()
+    service = build_calendar_service(access_token)
 
     event = {
         "summary": summary,
@@ -105,11 +109,11 @@ def add_study_block(summary: str, description: str, start_iso: str, end_iso: str
     }
 
 
-def list_events(time_min_iso: str, time_max_iso: str, max_results: int = 10) -> dict:
+def list_events(time_min_iso: str, time_max_iso: str, max_results: int = 10, access_token: str = None) -> dict:
     """
     List events within a time range.
     """
-    service = build_calendar_service()
+    service = build_calendar_service(access_token)
     
     events_result = service.events().list(
         calendarId='primary', 
@@ -128,11 +132,11 @@ def list_events(time_min_iso: str, time_max_iso: str, max_results: int = 10) -> 
     }
 
 
-def update_event(event_id: str, summary: str = None, description: str = None, start_iso: str = None, end_iso: str = None) -> dict:
+def update_event(event_id: str, summary: str = None, description: str = None, start_iso: str = None, end_iso: str = None, access_token: str = None) -> dict:
     """
     Update an existing event.
     """
-    service = build_calendar_service()
+    service = build_calendar_service(access_token)
     
     # First get the existing event to preserve fields we aren't changing
     try:
@@ -161,11 +165,11 @@ def update_event(event_id: str, summary: str = None, description: str = None, st
     }
 
 
-def delete_event(event_id: str) -> dict:
+def delete_event(event_id: str, access_token: str = None) -> dict:
     """
     Delete an event from the calendar.
     """
-    service = build_calendar_service()
+    service = build_calendar_service(access_token)
     try:
         service.events().delete(calendarId='primary', eventId=event_id).execute()
         return {"ok": True}
@@ -207,6 +211,7 @@ def create_event():
         description = data.get("description", "")
         start = data.get("start")
         end = data.get("end")
+        access_token = data.get("access_token")
 
         if not start or not end:
             return jsonify(
@@ -216,13 +221,13 @@ def create_event():
                 }
             ), 400
 
-        result = add_study_block(summary, description, start, end)
+        result = add_study_block(summary, description, start, end, access_token)
         return jsonify(result), 200
 
     except Exception as e:
         # Make error visible to the caller (agent_app.py)
         traceback.print_exc()
-        return jsonify({"ok": False, "error": "Internal Server Error"}), 500
+        return jsonify({"ok": False, "error": f"Internal Server Error: {str(e)}"}), 500
 
 
 @app.route("/list_events", methods=["GET"])
@@ -235,15 +240,16 @@ def list_events_endpoint():
         time_min = request.args.get("timeMin")
         time_max = request.args.get("timeMax")
         max_results = int(request.args.get("maxResults", 10))
+        access_token = request.args.get("access_token")
         
         if not time_min or not time_max:
              return jsonify({"ok": False, "error": "Missing timeMin or timeMax"}), 400
 
-        result = list_events(time_min, time_max, max_results)
+        result = list_events(time_min, time_max, max_results, access_token)
         return jsonify(result), 200
     except Exception as e:
         traceback.print_exc()
-        return jsonify({"ok": False, "error": "Internal Server Error"}), 500
+        return jsonify({"ok": False, "error": f"Internal Server Error: {str(e)}"}), 500
 
 
 @app.route("/update_event", methods=["POST"])
@@ -264,7 +270,8 @@ def update_event_endpoint():
             summary=data.get("summary"),
             description=data.get("description"),
             start_iso=data.get("start"),
-            end_iso=data.get("end")
+            end_iso=data.get("end"),
+            access_token=data.get("access_token")
         )
         return jsonify(result), 200
     except Exception as e:
@@ -285,7 +292,7 @@ def delete_event_endpoint():
         if not event_id:
             return jsonify({"ok": False, "error": "Missing eventId"}), 400
             
-        result = delete_event(event_id)
+        result = delete_event(event_id, access_token=data.get("access_token"))
         return jsonify(result), 200
     except Exception as e:
         traceback.print_exc()
