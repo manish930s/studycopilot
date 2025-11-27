@@ -1,5 +1,6 @@
 import os
 import datetime as dt
+import traceback
 
 from flask import Flask, request, jsonify
 
@@ -220,7 +221,8 @@ def create_event():
 
     except Exception as e:
         # Make error visible to the caller (agent_app.py)
-        return jsonify({"ok": False, "error": str(e)}), 500
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": "Internal Server Error"}), 500
 
 
 @app.route("/list_events", methods=["GET"])
@@ -240,7 +242,8 @@ def list_events_endpoint():
         result = list_events(time_min, time_max, max_results)
         return jsonify(result), 200
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": "Internal Server Error"}), 500
 
 
 @app.route("/update_event", methods=["POST"])
@@ -265,7 +268,8 @@ def update_event_endpoint():
         )
         return jsonify(result), 200
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": "Internal Server Error"}), 500
 
 
 @app.route("/delete_event", methods=["POST"])
@@ -284,7 +288,8 @@ def delete_event_endpoint():
         result = delete_event(event_id)
         return jsonify(result), 200
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": "Internal Server Error"}), 500
 
 
 # Optional: quick CLI test when you run:
