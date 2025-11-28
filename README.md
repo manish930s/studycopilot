@@ -94,8 +94,8 @@ graph TD
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/manish930s/Capstone-project
-cd Capstone-project
+git clone https://github.com/manish930s/studycopilot
+cd studycopilot
 ```
 
 ### 2. Install Dependencies
@@ -161,6 +161,7 @@ This project is optimized for deployment on **PythonAnywhere** (Free Tier).
 
 ## 🤝 Contributing
 Contributions are welcome! Please fork the repository and submit a Pull Request.
+
 
 
 
