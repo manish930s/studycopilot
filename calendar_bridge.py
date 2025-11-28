@@ -17,9 +17,7 @@ SCOPES = ["https://www.googleapis.com/auth/calendar.events"]
 
 # ✅ Put the EXACT name of your OAuth client secret file here
 # (the JSON you downloaded from Google Cloud Console)
-CLIENT_SECRET_FILE = (
-    "client_secret_2_370055681762-1an83limrs9ui5li794lmvpslk35bloj.apps.googleusercontent.com.json"
-)
+# CLIENT_SECRET_FILE removed - using client-side token
 
 # Token file where OAuth credentials will be cached
 TOKEN_FILE = "token.json"

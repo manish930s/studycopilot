@@ -94,89 +94,19 @@
         <p class="login-subtitle">Your AI-Powered Study Assistant</p>
 
         <button id="google-login-btn" class="google-btn">
-            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google"
-                class="google-icon">
-            Sign in with Google
-        </button>
-
-        <p id="error-message" class="error-msg"></p>
-    </div>
-
-    <!-- Firebase SDKs -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getAuth, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyByO3exgnw1ZqkmKSBL1VKiCwLxEnmO2ag",
-            authDomain: "studycopilot-9434d.firebaseapp.com",
-            projectId: "studycopilot-9434d",
-            storageBucket: "studycopilot-9434d.firebasestorage.app",
-            messagingSenderId: "21392727344",
-            appId: "1:21392727344:web:3d7696f44645d00cc9bcf5",
-            measurementId: "G-28EZJD18M9"
-        };
-
-        // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const provider = new GoogleAuthProvider();
-        // Force use of the project that has Calendar API enabled
-        provider.setCustomParameters({
-            'client_id': '370055681762-1an83limrs9ui5li794lmvpslk35bloj.apps.googleusercontent.com'
-        });
-
-        const loginBtn = document.getElementById('google-login-btn');
-        const errorMsg = document.getElementById('error-message');
-
-        loginBtn.addEventListener('click', async () => {
-            try {
-                // Request access to Google Calendar
-                provider.addScope('https://www.googleapis.com/auth/calendar');
-
-                const result = await signInWithPopup(auth, provider);
-
-                // This gives you a Google Access Token. You can use it to access the Google API.
-                const credential = GoogleAuthProvider.credentialFromResult(result);
-                const accessToken = credential.accessToken;
-
-                const user = result.user;
-                const token = await user.getIdToken();
-
-                // Send token to backend to set session
-                const response = await fetch('/auth/login', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        token: token,
-                        uid: user.uid,
-                        email: user.email,
-                        name: user.displayName,
-                        access_token: accessToken // Send the OAuth access token
-                    })
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    window.location.href = '/';
-                } else {
-                    throw new Error(data.error || 'Login failed on server');
-                }
-
-            } catch (error) {
-                console.error("Login Error:", error);
-                errorMsg.textContent = "Login failed: " + error.message;
-                errorMsg.style.display = 'block';
-
-                if (error.code === 'auth/configuration-not-found') {
-                    errorMsg.textContent = "Firebase config missing. Please check the code.";
-                }
-            }
-        });
-    </script>
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" // Request access
+                to Google Calendar provider.addScope('https://www.googleapis.com/auth/calendar'); const result=await
+                signInWithPopup(auth, provider); // This gives you a Google Access Token. You can use it to access the
+                Google API. const credential=GoogleAuthProvider.credentialFromResult(result); const
+                accessToken=credential.accessToken; const user=result.user; const token=await user.getIdToken(); // Send
+                token to backend to set session const response=await fetch('/auth/login', { method: 'POST' , headers:
+                { 'Content-Type' : 'application/json' }, body: JSON.stringify({ token: token, uid: user.uid, email:
+                user.email, name: user.displayName, access_token: accessToken // Send the OAuth access token }) });
+                const data=await response.json(); if (data.success) { window.location.href='/' ; } else { throw new
+                Error(data.error || 'Login failed on server' ); } } catch (error) { console.error("Login Error:",
+                error); errorMsg.textContent="Login failed: " + error.message; errorMsg.style.display='block' ; if
+                (error.code==='auth/configuration-not-found' ) {
+                errorMsg.textContent="Firebase config missing. Please check the code." ; } } }); </script>
 </body>
 
 </html>

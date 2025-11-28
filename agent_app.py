@@ -8,6 +8,7 @@ from google.generativeai import types as genai_types
 from dotenv import load_dotenv
 from werkzeug.utils import secure_filename
 import pypdf
+import calendar_bridge
 
 load_dotenv()
 
@@ -128,38 +129,20 @@ def get_current_datetime(timezone: str = "Asia/Kolkata") -> dict:
 
 def create_calendar_event(summary: str, description: str, start_iso: str, end_iso: str, access_token: str = None) -> dict:
     """
-    Call local calendar_bridge.py server (Flask) to create an event.
+    Call local calendar_bridge module to create an event.
     """
-    payload = {
-        "summary": summary,
-        "description": description,
-        "start": start_iso,
-        "end": end_iso,
-        "access_token": access_token
-    }
-
     try:
-        resp = requests.post(CALENDAR_BRIDGE_URL, json=payload, timeout=10)
-        return resp.json()
+        return calendar_bridge.add_study_block(summary, description, start_iso, end_iso, access_token)
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
 
 def list_calendar_events(time_min: str, time_max: str, max_results: int = 10, access_token: str = None) -> dict:
     """
-    Call local calendar_bridge.py server to list events.
+    Call local calendar_bridge module to list events.
     """
-    params = {
-        "timeMin": time_min,
-        "timeMax": time_max,
-        "maxResults": max_results,
-        "access_token": access_token
-    }
     try:
-        # We assume the bridge is running on port 5001
-        bridge_list_url = CALENDAR_BRIDGE_URL.replace("/create_event", "/list_events")
-        resp = requests.get(bridge_list_url, params=params, timeout=10)
-        return resp.json()
+        return calendar_bridge.list_events(time_min, time_max, max_results, access_token)
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
@@ -167,35 +150,19 @@ def list_calendar_events(time_min: str, time_max: str, max_results: int = 10, ac
 
 def update_calendar_event(event_id: str, summary: str = None, description: str = None, start_iso: str = None, end_iso: str = None, access_token: str = None) -> dict:
     """
-    Call local calendar_bridge.py server to update an event.
+    Call local calendar_bridge module to update an event.
     """
-    payload = {
-        "eventId": event_id,
-        "summary": summary,
-        "description": description,
-        "start": start_iso,
-        "end": end_iso,
-        "access_token": access_token
-    }
     try:
-        bridge_update_url = CALENDAR_BRIDGE_URL.replace("/create_event", "/update_event")
-        resp = requests.post(bridge_update_url, json=payload, timeout=10)
-        return resp.json()
+        return calendar_bridge.update_event(event_id, summary, description, start_iso, end_iso, access_token)
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
 def delete_calendar_event(event_id: str, access_token: str = None) -> dict:
     """
-    Call local calendar_bridge.py server to delete an event.
+    Call local calendar_bridge module to delete an event.
     """
-    payload = {
-        "eventId": event_id,
-        "access_token": access_token
-    }
     try:
-        bridge_delete_url = CALENDAR_BRIDGE_URL.replace("/create_event", "/delete_event")
-        resp = requests.post(bridge_delete_url, json=payload, timeout=10)
-        return resp.json()
+        return calendar_bridge.delete_event(event_id, access_token)
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
@@ -433,8 +400,12 @@ from flask import Flask, render_template, request, jsonify, session, redirect, u
 import uuid
 import json
 
-app = Flask(__name__)
-app.secret_key = "STUDY_COPILOT_SECURE_SECRET_KEY_123" # Static key for session persistence
+# Explicitly set template and static folders for PythonAnywhere
+template_dir = os.path.abspath('/home/manish2111/mysite/templates')
+static_dir = os.path.abspath('/home/manish2111/mysite/static')
+app = Flask(__name__, template_folder=template_dir, static_folder=static_dir)
+
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "STUDY_COPILOT_SECURE_SECRET_KEY_123") # Load from env or fallback
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # Global sessions storage
@@ -442,18 +413,20 @@ sessions = {}
 
 # Load existing files into RAG system on startup
 def load_existing_files():
-    """Load all existing files from uploads folder into RAG system"""
+    """Load all existing files from uploads folder (recursive) into RAG system"""
     if os.path.exists(UPLOAD_FOLDER):
-        for filename in os.listdir(UPLOAD_FOLDER):
-            filepath = os.path.join(UPLOAD_FOLDER, filename)
-            if os.path.isfile(filepath) and allowed_file(filename):
-                print(f"Loading {filename} into RAG system...")
-                text = extract_text_from_file(filepath)
-                if text:
-                    rag_system.add_document(filename, text)
-                    print(f"✓ Loaded {filename} ({len(text)} chars)")
-                else:
-                    print(f"✗ Failed to extract text from {filename}")
+        for root, dirs, files in os.walk(UPLOAD_FOLDER):
+            for filename in files:
+                if allowed_file(filename):
+                    filepath = os.path.join(root, filename)
+                    print(f"Loading {filename} into RAG system...")
+                    text = extract_text_from_file(filepath)
+                    if text:
+                        # Use filename as key (assuming unique names per user, or global uniqueness not strictly enforced for RAG yet)
+                        rag_system.add_document(filename, text)
+                        print(f"✓ Loaded {filename} ({len(text)} chars)")
+                    else:
+                        print(f"✗ Failed to extract text from {filename}")
 
 # Load files on startup
 load_existing_files()
@@ -515,36 +488,61 @@ def logout():
 
 @app.route("/sessions", methods=["GET"])
 def get_sessions():
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify([])
+        
     session_list = [
         {"id": sid, "title": s["title"]} 
         for sid, s in sessions.items()
+        if s.get("user_id") == user_id
     ]
     return jsonify(session_list[::-1])
 
 @app.route("/new_chat", methods=["POST"])
 def new_chat():
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({"error": "Unauthorized"}), 401
+        
     session_id = str(uuid.uuid4())
     sessions[session_id] = {
         "title": "New Chat",
-        "history": []
+        "history": [],
+        "user_id": user_id
     }
     return jsonify({"id": session_id, "title": "New Chat"})
 
 @app.route("/sessions/<session_id>", methods=["DELETE"])
 def delete_session(session_id):
+    user_id = session.get('user_id')
     if session_id in sessions:
-        del sessions[session_id]
-        return jsonify({"success": True})
+        # Check ownership
+        if sessions[session_id].get("user_id") == user_id:
+            del sessions[session_id]
+            return jsonify({"success": True})
+        else:
+            return jsonify({"error": "Unauthorized"}), 403
     return jsonify({"error": "Session not found"}), 404
 
 @app.route("/history/<session_id>", methods=["GET"])
 def get_history(session_id):
+    user_id = session.get('user_id')
     if session_id not in sessions:
         return jsonify({"error": "Session not found"}), 404
+        
+    # Check ownership
+    if sessions[session_id].get("user_id") != user_id:
+        return jsonify({"error": "Unauthorized"}), 403
+        
     return jsonify(sessions[session_id]["history"])
 
 @app.route("/upload", methods=["POST"])
 def upload_file():
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({"error": "Unauthorized"}), 401
+        
     if 'file' not in request.files:
         return jsonify({"error": "No file part"}), 400
     file = request.files['file']
@@ -553,7 +551,13 @@ def upload_file():
     
     if file and allowed_file(file.filename):
         filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        
+        # Create user-specific folder
+        user_folder = os.path.join(app.config['UPLOAD_FOLDER'], user_id)
+        if not os.path.exists(user_folder):
+            os.makedirs(user_folder)
+            
+        filepath = os.path.join(user_folder, filename)
         file.save(filepath)
         
         # Extract and index text immediately
@@ -574,10 +578,15 @@ def chat_endpoint():
         return jsonify({"error": "No message provided"}), 400
 
     if not session_id or session_id not in sessions:
+        user_id = session.get('user_id')
+        if not user_id:
+             return jsonify({"error": "Unauthorized"}), 401
+             
         session_id = str(uuid.uuid4())
         sessions[session_id] = {
             "title": "New Chat",
-            "history": []
+            "history": [],
+            "user_id": user_id
         }
     
     session_data = sessions[session_id]
@@ -640,7 +649,7 @@ def chat_endpoint():
     agent_response = chat_with_agent(user_msg, chat_history, context)
     
     # 6. Parse JSON from agent response
-    json_match = re.search(r'```json\s*(\{.*?\})\s*```', agent_response, re.DOTALL)
+    json_match = re.search(r'```json(.*?)```', agent_response, re.DOTALL)
     if json_match:
         try:
             json_data = json.loads(json_match.group(1))
@@ -928,7 +937,7 @@ Provide the evaluation in this EXACT JSON format:
 def parse_json_from_response(text):
     """Extract JSON from markdown code blocks."""
     import re
-    json_match = re.search(r'```json\s*(\{.*?\})\s*```', text, re.DOTALL)
+    json_match = re.search(r'```json(.*?)```', text, re.DOTALL)
     if json_match:
         try:
             return json.loads(json_match.group(1))
@@ -938,11 +947,17 @@ def parse_json_from_response(text):
 
 @app.route("/list_uploads", methods=["GET"])
 def list_uploads():
-    """List all uploaded files"""
+    """List all uploaded files for the current user"""
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({"files": []})
+        
     files = []
-    if os.path.exists(UPLOAD_FOLDER):
-        for filename in os.listdir(UPLOAD_FOLDER):
-            filepath = os.path.join(UPLOAD_FOLDER, filename)
+    user_folder = os.path.join(UPLOAD_FOLDER, user_id)
+    
+    if os.path.exists(user_folder):
+        for filename in os.listdir(user_folder):
+            filepath = os.path.join(user_folder, filename)
             if os.path.isfile(filepath):
                 files.append({
                     "name": filename,
@@ -953,13 +968,19 @@ def list_uploads():
 @app.route("/delete_file", methods=["POST"])
 def delete_file():
     """Delete an uploaded file"""
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({"error": "Unauthorized"}), 401
+        
     data = request.json
     filename = data.get("filename")
     
     if not filename:
         return jsonify({"error": "No filename provided"}), 400
         
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    user_folder = os.path.join(app.config['UPLOAD_FOLDER'], user_id)
+    filepath = os.path.join(user_folder, filename)
+    
     try:
         if os.path.exists(filepath):
             os.remove(filepath)
