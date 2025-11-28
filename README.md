@@ -32,16 +32,16 @@ StudyCopilot is built as a monolithic Flask application for simplicity and ease 
 
 ```mermaid
 graph TD
-    User[User (Browser)] <-->|HTTPS| Flask[Flask Web Server]
+    User["User (Browser)"] <-->|HTTPS| Flask["Flask Web Server"]
     
     subgraph "Backend (Python)"
-        Flask <-->|Auth| Firebase[Firebase Auth]
-        Flask <-->|Logic| Agent[AI Agent Logic]
-        Flask <-->|Storage| FileSys[File System (Uploads)]
+        Flask <-->|Auth| Firebase["Firebase Auth"]
+        Flask <-->|Logic| Agent["AI Agent Logic"]
+        Flask <-->|Storage| FileSys["File System (Uploads)"]
         
-        Agent <-->|API| Gemini[Google Gemini 2.0 Flash]
-        Agent <-->|API| GCal[Google Calendar API]
-        Agent <-->|RAG| VectorStore[In-Memory Vector Store]
+        Agent <-->|API| Gemini["Google Gemini 2.0 Flash"]
+        Agent <-->|API| GCal["Google Calendar API"]
+        Agent <-->|RAG| VectorStore["In-Memory Vector Store"]
     end
 ```
 
@@ -161,6 +161,7 @@ This project is optimized for deployment on **PythonAnywhere** (Free Tier).
 
 ## 🤝 Contributing
 Contributions are welcome! Please fork the repository and submit a Pull Request.
+
 
 
 
